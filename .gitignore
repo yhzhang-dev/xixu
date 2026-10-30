@@ -1,0 +1,42 @@
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+unpackage/
+*.jks
+*.keystore
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
+# Env & secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Logs & temp
+*.log
+.tmp/
+uploads/
