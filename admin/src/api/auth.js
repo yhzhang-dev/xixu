@@ -4,7 +4,7 @@ export function getToken() { return sessionStorage.getItem(TOKEN_KEY) }
 export function saveToken(token) { sessionStorage.setItem(TOKEN_KEY, token) }
 export function clearToken() { sessionStorage.removeItem(TOKEN_KEY) }
 
-async function request(path, options = {}, token = null) {
+export async function request(path, options = {}, token = null) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10000)
   try {

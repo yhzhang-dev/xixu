@@ -21,17 +21,17 @@
       </view>
     </view>
 
-    <view class="sample-label"><view class="sample-dot"></view><text>界面原型 · 以下为示例数据</text></view>
+    <view class="sample-label"><view class="sample-dot"></view><text>记账已接入真实数据 · 日程与日志仍为示例</text></view>
 
     <view class="section-head">
       <view><text class="section-en">OVERVIEW</text><text class="section-title">今日一览</text></view>
       <text class="section-side">{{ month }}月{{ day }}日</text>
     </view>
     <view class="stats">
-      <view class="stat">
+      <view class="stat" @tap="goLedger">
         <text class="stat-name">今日支出</text>
-        <view class="stat-number"><text class="unit">¥</text><text>36.50</text></view>
-        <text class="stat-note">示例账目</text>
+        <view class="stat-number"><text v-if="!todayLedgerError" class="unit">¥</text><text>{{ todayLedgerError ? '—' : todayExpense }}</text></view>
+        <text class="stat-note">{{ todayLedgerError ? '账目暂未同步' : todayCount ? '今日真实支出' : '暂无支出' }}</text>
       </view>
       <view class="stat">
         <text class="stat-name">待办日程</text>
@@ -66,12 +66,25 @@
 
     <view class="section-head later">
       <view><text class="section-en">TODAY'S FLOW</text><text class="section-title">今日片段</text></view>
-      <text class="section-side">示例</text>
+      <text class="section-side" @tap="goLedger">查看账本 ›</text>
     </view>
-    <view class="timeline">
-      <view class="event"><text class="event-time">09:00</text><view class="event-info"><text class="event-type">课表</text><text class="event-title">课程安排示例</text><text class="event-detail">接入课表后显示真实课程</text></view></view>
-      <view class="event last"><text class="event-time">12:30</text><view class="event-info"><text class="event-type">账本</text><text class="event-title">午餐 · ¥25.00</text><text class="event-detail">以后可以从这里回看当天记录</text></view></view>
+    <view class="timeline" v-if="!todayLedgerError && todayEntries.length">
+      <view v-for="(item, idx) in todayEntries" :key="item.id" :class="['event', { last: idx === todayEntries.length - 1 }]">
+        <text class="event-time">{{ item.occurredTime || '全天' }}</text>
+        <view class="event-info">
+          <text class="event-type">{{ item.entryType === 'EXPENSE' ? '支出' : '收入' }}</text>
+          <text class="event-title">{{ item.categoryName }} · ¥{{ formatAmount(item.amount) }}</text>
+          <text class="event-detail">{{ item.channelName || '手动' }}{{ item.note ? ' · ' + item.note : '' }}</text>
+        </view>
+      </view>
     </view>
+    <view class="timeline" v-else-if="todayLedgerError" @tap="loadTodayLedger">
+      <view class="event last"><text class="event-time">—</text><view class="event-info"><text class="event-type">账本</text><text class="event-title">账目暂未同步</text><text class="event-detail">检查网络和服务端后，点这里重试</text></view></view>
+    </view>
+    <view class="timeline" v-else>
+      <view class="event last"><text class="event-time">—</text><view class="event-info"><text class="event-type">账本</text><text class="event-title">今天还没有记录</text><text class="event-detail">点上方「开始记录」记下第一笔</text></view></view>
+    </view>
+    <button v-if="todayCount > todayEntries.length" class="ledger-more" @tap="goLedger">还有 {{ todayCount - todayEntries.length }} 笔，查看全部账目 →</button>
     <text class="footer">汐序 · 收好生活的每一天</text>
     <button v-if="isLoggedIn" class="logout-button" @tap="logout">退出登录</button>
   </view>
@@ -91,7 +104,12 @@ export default {
       weekday: weekdays[now.getDay()],
       greeting: hour < 11 ? '早上好' : hour < 18 ? '下午好' : '晚上好',
       accountName: '',
-      isLoggedIn: false
+      isLoggedIn: false,
+      todayExpense: '0.00',
+      todayEntries: [],
+      todayCount: 0,
+      todayLedgerError: false,
+      todayRequestId: 0
     }
   },
   onLoad() {
@@ -111,9 +129,80 @@ export default {
       }
     })
   },
+  onShow() {
+    const now = new Date()
+    this.day = String(now.getDate()).padStart(2, '0')
+    this.month = now.getMonth() + 1
+    this.weekday = weekdays[now.getDay()]
+    this.loadTodayLedger()
+  },
   methods: {
     openAction(name) {
+      if (name === '记一笔') {
+        this.goRecord()
+        return
+      }
       uni.showToast({ title: name + '页面正在制作', icon: 'none' })
+    },
+    goRecord() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) {
+        uni.showToast({ title: '请先登录', icon: 'none' })
+        setTimeout(() => uni.reLaunch({ url: '/pages/login/index' }), 600)
+        return
+      }
+      uni.navigateTo({ url: '/pages/ledger/record' })
+    },
+    goLedger() {
+      uni.navigateTo({ url: '/pages/ledger/list' })
+    },
+    loadTodayLedger() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) return
+      const requestId = ++this.todayRequestId
+      this.todayEntries = []
+      const now = new Date()
+      const pad = (n) => String(n).padStart(2, '0')
+      const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+      this.todayLedgerError = false
+      uni.request({
+        url: API_BASE_URL + '/api/ledger/summary?from=' + today + '&to=' + today,
+        header: { Authorization: 'Bearer ' + token },
+        success: (res) => {
+          if (requestId !== this.todayRequestId) return
+          if (res.statusCode === 200 && res.data) {
+            this.todayExpense = this.formatAmount(res.data.expense)
+            this.todayCount = res.data.count || 0
+          } else {
+            this.todayLedgerError = true
+            if (res.statusCode === 401) this.expireSession()
+          }
+        },
+        fail: () => { if (requestId === this.todayRequestId) this.todayLedgerError = true }
+      })
+      uni.request({
+        url: API_BASE_URL + '/api/ledger/entries?from=' + today + '&to=' + today + '&size=5',
+        header: { Authorization: 'Bearer ' + token },
+        success: (res) => {
+          if (requestId !== this.todayRequestId) return
+          if (res.statusCode === 200 && res.data) {
+            this.todayEntries = res.data.items || []
+          } else if (res.statusCode === 401) {
+            this.expireSession()
+          } else {
+            this.todayLedgerError = true
+          }
+        },
+        fail: () => { if (requestId === this.todayRequestId) { this.todayLedgerError = true; this.todayEntries = [] } }
+      })
+    },
+    expireSession() {
+      uni.removeStorageSync(TOKEN_KEY)
+      uni.reLaunch({ url: '/pages/login/index' })
+    },
+    formatAmount(value) {
+      const n = Number(value)
+      return Number.isFinite(n) ? n.toFixed(2) : '0.00'
     },
     logout() {
       const token = uni.getStorageSync(TOKEN_KEY)
@@ -193,4 +282,5 @@ button::after { border: 0; }
 .last { min-height: 95rpx; }
 .last .event-info { border-left-color: transparent; }
 .footer { display: block; text-align: center; margin-top: 38rpx; font-size: 18rpx; color: #a1b2b3; letter-spacing: 1rpx; }
+.ledger-more { margin-top: 14rpx; background: #eaf4ef; border-radius: 18rpx; color: #2c756d; font-size: 22rpx; }
 </style>

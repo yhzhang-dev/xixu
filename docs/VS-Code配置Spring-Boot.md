@@ -1,6 +1,6 @@
 # 在 VS Code 中打开汐序服务端
 
-本机检查于 2026-10-31：JDK 17、VS Code、Java 扩展包、Spring Boot Tools、Spring Boot Dashboard、Spring Initializr、Maven for Java 均已安装。`server/mvnw.cmd -v` 识别 Maven 3.10.0 和 JDK 17；`mvnw.cmd -DskipTests package` 构建成功。**目前服务端只有工程骨架，登录接口和数据库连接配置还在开发中，暂不要用能否启动服务判断 VS Code 配置是否成功。**
+本机检查于 2026-10-31：JDK 17、VS Code、Java 扩展包、Spring Boot Tools、Spring Boot Dashboard、Spring Initializr、Maven for Java 均已安装。`server/mvnw.cmd -v` 识别 Maven 3.10.0 和 JDK 17；构建、登录接口及记账接口均已通过验证。启动服务需要本机 MySQL 凭据，按[登录功能本地运行](登录功能本地运行.md)使用 `start-local.ps1`。
 
 ## 操作步骤
 
@@ -21,4 +21,4 @@
 - 看不到 **JAVA PROJECTS**：按 `Ctrl+Shift+P`，执行 `Java: Import Java projects in workspace`，然后等待导入。
 - Java 文件持续显示红色但命令行构建成功：按 `Ctrl+Shift+P`，执行 `Java: Clean Java Language Server Workspace`，确认重启后再等导入完成。
 - `mvn` 命令找不到：本项目使用 `mvnw.cmd`，无需全局安装 Maven。
-- 当前直接点击 Run 若因数据源缺少配置而启动失败，属于服务端尚未接入数据库，不代表 VS Code 安装失败。登录功能完成后会提供本地运行配置。
+- 直接点击 Run 若因缺少 `XIXU_DB_USER` / `XIXU_DB_PASSWORD` 而启动失败，按[本地运行说明](登录功能本地运行.md)使用 `start-local.ps1` 在终端输入数据库凭据；这不是 VS Code 扩展故障。

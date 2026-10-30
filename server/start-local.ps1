@@ -9,12 +9,19 @@ try {
         $owner = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
         throw "端口 $port 已被 $($owner.ProcessName) (PID $($listener.OwningProcess)) 占用，请先处理端口冲突"
     }
-    $dbUser = Read-Host 'MySQL 用户名（直接回车使用 root）'
-    if ([string]::IsNullOrWhiteSpace($dbUser)) { $dbUser = 'root' }
-    $dbSecret = Read-Host 'MySQL 密码' -AsSecureString
-    $env:XIXU_DB_USER = $dbUser
-    $env:XIXU_DB_PASSWORD = [System.Net.NetworkCredential]::new('', $dbSecret).Password
 
+    # 数据库连接：环境变量已设置则免交互，否则提示输入。密码不写入任何文件。
+    if ([string]::IsNullOrWhiteSpace($env:XIXU_DB_PASSWORD)) {
+        $dbUser = Read-Host 'MySQL 用户名（直接回车使用 root）'
+        if ([string]::IsNullOrWhiteSpace($dbUser)) { $dbUser = 'root' }
+        $dbSecret = Read-Host 'MySQL 密码' -AsSecureString
+        $env:XIXU_DB_USER = $dbUser
+        $env:XIXU_DB_PASSWORD = [System.Net.NetworkCredential]::new('', $dbSecret).Password
+    } elseif ([string]::IsNullOrWhiteSpace($env:XIXU_DB_USER)) {
+        $env:XIXU_DB_USER = 'root'
+    }
+
+    # 仅首次（app_user 表为空时）需要：创建初始管理员。已有用户时不要加此开关。
     if ($CreateAdmin) {
         $env:XIXU_BOOTSTRAP_USERNAME = Read-Host '初始管理员用户名（3-50 位字母、数字或下划线）'
         $adminSecret = Read-Host '初始管理员密码（至少 12 位）' -AsSecureString
