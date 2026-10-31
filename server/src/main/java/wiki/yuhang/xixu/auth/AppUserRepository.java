@@ -1,6 +1,5 @@
 package wiki.yuhang.xixu.auth;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,7 +32,7 @@ public class AppUserRepository {
             username, passwordHash, username);
     }
 
-    public void recordLogin(long userId, LocalDateTime now) {
-        jdbc.update("UPDATE app_user SET last_login_at = ? WHERE id = ?", now, userId);
+    public void recordLogin(long userId) {
+        jdbc.update("UPDATE app_user SET last_login_at = UTC_TIMESTAMP(3) WHERE id = ?", userId);
     }
 }

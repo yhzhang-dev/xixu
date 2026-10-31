@@ -3,6 +3,7 @@ package wiki.yuhang.xixu.auth;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,8 +25,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        return auth.login(request.username(), request.password())
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
+                                   HttpServletRequest servletRequest) {
+        return auth.login(request.username(), request.password(),
+                cleanUserAgent(servletRequest.getHeader("User-Agent")),
+                cleanIp(servletRequest.getRemoteAddr()))
             .<ResponseEntity<?>>map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("message", "用户名或密码错误")));
@@ -44,5 +48,16 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Size(max = 50) String username,
                                @NotBlank String password) {
+    }
+
+    private static String cleanUserAgent(String value) {
+        if (value == null || value.isBlank()) return null;
+        String clean = value.replaceAll("[\\p{Cntrl}]", " ").trim();
+        return clean.substring(0, Math.min(clean.length(), 512));
+    }
+
+    private static String cleanIp(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.substring(0, Math.min(value.length(), 45));
     }
 }
