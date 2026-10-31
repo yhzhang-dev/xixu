@@ -161,4 +161,36 @@ button::after { border: 0; }
 .save-hint { display: block; margin: 27rpx 6rpx 0; color: #9aadaa; font-size: 19rpx; line-height: 1.6; text-align: center; }
 .save-button { margin-top: 23rpx; height: 92rpx; line-height: 92rpx; border-radius: 22rpx; background: linear-gradient(110deg, #104b5b, #287b78); color: #fff; font-size: 28rpx; font-weight: 600; }
 .save-button:disabled { opacity: .65; }
+
+/* 汐序 v1：让日志易写，训练组次易核对 */
+page { background: #f5f7f4; }
+.journal-record-page { padding-bottom: calc(80rpx + env(safe-area-inset-bottom)); color: #173d46; }
+.top-bar { min-height: 96rpx; margin: 0 0 20rpx; }
+.back { display: flex; align-items: center; width: 124rpx; min-height: 96rpx; color: #17675f; font-size: 27rpx; }
+.spacer { width: 124rpx; }
+.top-title { color: #173d46; }
+.intro { margin-bottom: 26rpx; }
+.intro-kicker { color: #397e72; font-size: 20rpx; letter-spacing: 3rpx; }
+.intro-note { color: #567077; font-size: 24rpx; }
+.type-switch { background: #e7f2ed; }
+.type-item { height: 88rpx; line-height: 88rpx; color: #345f60; }
+.type-item.active { background: #17675f; }
+.form-card { border-color: #dae6e1; box-shadow: none; }
+.card-heading text:first-child { color: #173d46; font-size: 28rpx; }
+.card-heading text:last-child, .card-note, .save-hint { color: #567077; font-size: 22rpx; }
+.field-label { color: #34555b; font-size: 24rpx; }
+.picker-value, .field-input { height: 94rpx; line-height: 94rpx; background: #f8faf8; border: 1rpx solid #dae6e1; color: #173d46; font-size: 27rpx; }
+.field-textarea { min-height: 220rpx; background: #f8faf8; border: 1rpx solid #dae6e1; color: #173d46; font-size: 26rpx; }
+.placeholder { color: #819a97; }
+.set-card { background: #f7faf7; border-color: #dae6e1; }
+.set-head { color: #173d46; font-size: 25rpx; }
+.set-head > view { gap: 10rpx; color: #17675f; font-size: 22rpx; }
+.set-head > view text { display: flex; align-items: center; min-height: 88rpx; padding: 0 8rpx; }
+.metric-row { flex-wrap: wrap; }
+.metric-field { flex-basis: 30%; }
+.metric-input { height: 88rpx; border-color: #dae6e1; }
+.metric-input input { font-size: 25rpx; }
+.metric-input text { color: #567077; font-size: 21rpx; }
+.add-set { height: 96rpx; line-height: 96rpx; border-color: #9bc6af; color: #17675f; font-size: 26rpx; }
+.save-button { height: 100rpx; line-height: 100rpx; border-radius: 18rpx; background: #17675f; font-size: 29rpx; }
 </style>

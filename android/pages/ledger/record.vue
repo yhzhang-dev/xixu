@@ -20,7 +20,7 @@
     </view>
 
     <view class="form-card">
-      <view class="card-heading"><text>基本信息</text><text>必填</text></view>
+      <view class="card-heading"><text>基本信息</text><text>日期与分类必填</text></view>
 
     <view class="field">
       <text class="field-label">日期</text>
@@ -196,4 +196,29 @@ button::after { border: 0; }
 .field-input { height: 76rpx; margin-top: 12rpx; padding: 0 20rpx; background: #f6f9f7; border-radius: 16rpx; color: #21444d; font-size: 25rpx; }
 .placeholder { color: #aab9ba; }
 .save-button { margin-top: 48rpx; height: 92rpx; line-height: 92rpx; border-radius: 22rpx; background: linear-gradient(110deg, #104b5b, #287b78); color: #fff; font-size: 28rpx; font-weight: 600; letter-spacing: 4rpx; }
+
+/* 汐序 v1：金额先行，补充信息按需填写 */
+page { background: #f5f7f4; }
+.record-page { padding-bottom: calc(70rpx + env(safe-area-inset-bottom)); color: #173d46; }
+.top-bar { min-height: 96rpx; margin: 0 0 20rpx; }
+.back { display: flex; align-items: center; min-width: 124rpx; min-height: 96rpx; color: #17675f; font-size: 27rpx; }
+.spacer { width: 124rpx; }
+.page-title { color: #173d46; }
+.intro { margin-bottom: 26rpx; }
+.intro-kicker { color: #397e72; font-size: 20rpx; letter-spacing: 3rpx; }
+.intro-note { color: #567077; font-size: 24rpx; }
+.type-switch { background: #e7f2ed; }
+.type-item { height: 88rpx; line-height: 88rpx; color: #345f60; }
+.type-item.active { background: #17675f; }
+.form-card { border-color: #dae6e1; box-shadow: none; }
+.card-heading text:first-child { color: #173d46; font-size: 28rpx; }
+.card-heading text:last-child, .save-hint { color: #567077; font-size: 22rpx; }
+.amount-box { background: #e7f2ed; border-color: #c6ded2; }
+.field-label { color: #34555b; font-size: 24rpx; }
+.picker-value, .field-input { height: 94rpx; line-height: 94rpx; background: #f8faf8; border: 1rpx solid #dae6e1; color: #173d46; font-size: 27rpx; }
+.chip { display: flex; align-items: center; min-height: 88rpx; padding: 0 26rpx; background: #f1f6f3; color: #345f60; font-size: 25rpx; }
+.chip.active { background: #17675f; }
+.clear-time { display: flex; align-items: center; min-height: 88rpx; color: #17675f; font-size: 24rpx; }
+.placeholder { color: #819a97; }
+.save-button { height: 100rpx; line-height: 100rpx; border-radius: 18rpx; background: #17675f; font-size: 29rpx; letter-spacing: 1rpx; }
 </style>

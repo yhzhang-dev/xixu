@@ -147,4 +147,34 @@ button::after { border: 0; }
 .load-note { display: block; padding: 22rpx; color: #a0b2b0; font-size: 19rpx; text-align: center; }
 .more-button { margin-bottom: 25rpx; }
 .record-button { position: fixed; bottom: 30rpx; left: 30rpx; right: 30rpx; z-index: 10; height: 88rpx; line-height: 88rpx; border-radius: 22rpx; background: linear-gradient(110deg, #154b58, #2b837a); color: #fff; font-size: 27rpx; font-weight: 600; box-shadow: 0 14rpx 26rpx rgba(24,83,82,.2); }
+
+/* 汐序 v1：日志分类、来源和正文优先阅读 */
+page { background: #f5f7f4; }
+.journal-page { padding-bottom: calc(170rpx + env(safe-area-inset-bottom)); color: #173d46; }
+.top-bar { min-height: 96rpx; margin: 0 0 20rpx; }
+.back { display: flex; align-items: center; width: 124rpx; min-height: 96rpx; color: #17675f; font-size: 27rpx; }
+.spacer { width: 124rpx; }
+.top-title { color: #173d46; }
+.heading { margin-bottom: 24rpx; }
+.eyebrow { color: #397e72; font-size: 20rpx; letter-spacing: 3rpx; }
+.subtitle { color: #567077; font-size: 24rpx; }
+.month-bar { background: #e7f2ed; border: 1rpx solid #d5e5de; }
+.month-arrow { width: 96rpx; min-height: 96rpx; line-height: 96rpx; color: #17675f; }
+.month-label { color: #173d46; font-size: 29rpx; }
+.month-label text:last-child { color: #567077; font-size: 21rpx; }
+.filter-row { gap: 10rpx; }
+.filter-chip { display: flex; align-items: center; justify-content: center; min-height: 88rpx; padding: 0 23rpx; border: 1rpx solid #dae6e1; border-radius: 16rpx; color: #345f60; font-size: 23rpx; }
+.filter-chip.active { background: #17675f; border-color: #17675f; }
+.count { color: #567077; font-size: 23rpx; }
+.entry-list, .empty { border: 1rpx solid #dae6e1; border-radius: 22rpx; }
+.entry { padding: 28rpx 26rpx; border-bottom-color: #e8efeb; }
+.entry-meta { flex-wrap: wrap; color: #567077; font-size: 22rpx; }
+.type-tag, .source-tag { font-size: 20rpx; }
+.entry-title { color: #173d46; font-size: 29rpx; }
+.entry-content { color: #34585d; font-size: 25rpx; line-height: 1.65; }
+.entry-remark { color: #567077; font-size: 23rpx; }
+.set-pill, .set-more { color: #365f59; font-size: 21rpx; }
+.empty-note, .load-note { color: #567077; font-size: 23rpx; }
+.empty button, .more-button { min-height: 88rpx; line-height: 88rpx; color: #17675f; font-size: 25rpx; }
+.record-button { bottom: calc(24rpx + env(safe-area-inset-bottom)); height: 100rpx; line-height: 100rpx; border-radius: 18rpx; background: #17675f; box-shadow: 0 8rpx 20rpx rgba(16,62,72,.12); font-size: 29rpx; }
 </style>

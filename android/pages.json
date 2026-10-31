@@ -16,6 +16,14 @@
 			}
 		},
 		{
+			"path": "pages/health/index",
+			"style": { "navigationBarTitleText": "身体与训练", "navigationStyle": "custom" }
+		},
+		{
+			"path": "pages/health/record",
+			"style": { "navigationBarTitleText": "记录身体", "navigationStyle": "custom" }
+		},
+		{
 			"path": "pages/ledger/record",
 			"style": {
 				"navigationBarTitleText": "记一笔",

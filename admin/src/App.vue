@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { clearToken, getCurrentUser, getToken, login, logout, saveToken } from './api/auth'
 import { createEntry, getSummary, listEntries, voidEntry } from './api/ledger'
 import { createLog, listLogs } from './api/logs'
+import { listBody, listSleep } from './api/wellness'
+import HealthPanel from './HealthPanel.vue'
 
 const state = ref('checking')
 const username = ref('')
@@ -37,6 +39,8 @@ const journalBusy = ref(false)
 const journalError = ref('')
 const journalSuccess = ref('')
 let journalRequestId = 0
+const overview = ref({ expense: null, ledgerCount: null, logCount: null, weight: null, weightDate: null, sleepMinutes: null, sleepDate: null, loading: false, error: '' })
+let overviewRequestId = 0
 
 function emptyWorkoutSet() { return { _key: ++nextWorkoutSetKey, exerciseName: '', repetitions: '', weightKg: '', durationSeconds: '' } }
 
@@ -45,11 +49,12 @@ const dateText = new Intl.DateTimeFormat('zh-CN', {
 }).format(new Date())
 
 const sections = [
-  { key: 'overview', icon: '⌂', label: '总览', detail: '生活的脉络，从这里开始。' },
-  { key: 'ledger', icon: '¥', label: '记账', detail: '记录收入与支出，按日期和分类查找。' },
-  { key: 'schedule', icon: '▦', label: '日程课表', detail: '安排课程、计划和提醒。' },
-  { key: 'journal', icon: '✎', label: '日志与训练', detail: '记录日常片段和每一组训练。' },
-  { key: 'attachments', icon: '▧', label: '附件归档', detail: '整理截图、票据和文件。' },
+  { key: 'overview', index: '00', label: '总览', detail: '从今天开始回看。', ready: true },
+  { key: 'health', index: '01', label: '身体与训练', detail: '记录体重、睡眠，观察真实变化。', ready: true },
+  { key: 'journal', index: '02', label: '日志与训练', detail: '记录日常片段和每一组训练。', ready: true },
+  { key: 'ledger', index: '03', label: '记账', detail: '记录收入与支出，按日期和分类查找。', ready: true },
+  { key: 'schedule', index: '04', label: '日程课表', detail: '安排课程、计划和提醒。', ready: false },
+  { key: 'attachments', index: '05', label: '附件归档', detail: '整理截图、票据和文件。', ready: false },
 ]
 
 const currentSection = computed(() => sections.find(item => item.key === activeSection.value))
@@ -61,6 +66,7 @@ async function restoreSession() {
   try {
     user.value = await getCurrentUser(token)
     state.value = 'ready'
+    loadOverview()
   } catch {
     clearToken()
     state.value = 'login'
@@ -82,6 +88,7 @@ async function submitLogin() {
     password.value = ''
     state.value = 'ready'
     activeSection.value = 'overview'
+    loadOverview()
   } catch (cause) {
     clearToken()
     error.value = cause.status === 401
@@ -106,6 +113,7 @@ async function signOut() {
     user.value = null
     ledgerRequestId++
     journalRequestId++
+    overviewRequestId++
     ledger.value.items = []
     journal.value.items = []
     ledgerSummary.value = { count: 0, expense: 0, income: 0 }
@@ -120,6 +128,46 @@ async function signOut() {
 function formatAmount(value) {
   const n = Number(value)
   return Number.isFinite(n) ? n.toFixed(2) : '0.00'
+}
+
+async function loadOverview() {
+  const requestId = ++overviewRequestId
+  const today = todayInput()
+  const start = new Date()
+  start.setDate(start.getDate() - 364)
+  const from = start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-' + String(start.getDate()).padStart(2, '0')
+  overview.value.loading = true
+  overview.value.error = ''
+  overview.value.expense = null
+  overview.value.ledgerCount = null
+  overview.value.logCount = null
+  overview.value.weight = null
+  overview.value.weightDate = null
+  overview.value.sleepMinutes = null
+  overview.value.sleepDate = null
+  const [money, logs, body, sleep] = await Promise.allSettled([
+    getSummary({ from: today, to: today }),
+    listLogs({ from: today, to: today, page: 1, size: 1 }),
+    listBody(from, today),
+    listSleep(from, today),
+  ])
+  if (requestId !== overviewRequestId) return
+  if (money.status === 'fulfilled') {
+    overview.value.expense = formatAmount(money.value.expense)
+    overview.value.ledgerCount = money.value.count
+  }
+  if (logs.status === 'fulfilled') overview.value.logCount = logs.value.total
+  if (body.status === 'fulfilled') {
+    const latestWeight = body.value.find(item => item.weightKg != null)
+    overview.value.weight = latestWeight?.weightKg ?? null
+    overview.value.weightDate = latestWeight?.observedOn ?? null
+  }
+  if (sleep.status === 'fulfilled' && sleep.value.length) {
+    overview.value.sleepMinutes = sleep.value[0].durationMinutes
+    overview.value.sleepDate = sleep.value[0].sleepOn
+  }
+  if ([money, logs, body, sleep].some(result => result.status === 'rejected')) overview.value.error = '部分数据暂未同步，可稍后重试。'
+  overview.value.loading = false
 }
 
 async function loadLedger(page = ledger.value.page) {
@@ -318,6 +366,7 @@ async function submitJournal() {
 }
 
 watch(activeSection, (section) => {
+  if (section === 'overview') loadOverview()
   if (section === 'ledger') loadLedger(1)
   if (section === 'journal') loadJournal(1)
 })
@@ -337,8 +386,8 @@ onMounted(restoreSession)
       <div class="story-content">
         <div class="story-eyebrow"><span></span> YOUR DAYS, IN ONE PLACE</div>
         <h1>让每一天，<br /><em>都有迹可循。</em></h1>
-        <p>账目、日程、日志与生活里的片段，<br />安放在同一个地方。</p>
-        <div class="story-line"><span>01 / 04</span><i></i><span>从记录开始</span></div>
+        <p>账目、日志与生活里的片段，<br />安放在同一个地方。</p>
+        <div class="story-line"><span>01 / 03</span><i></i><span>从记录开始</span></div>
       </div>
       <div class="story-footer">汐序 · 收好生活的每一天</div>
     </section>
@@ -379,13 +428,14 @@ onMounted(restoreSession)
         <button v-for="section in sections" :key="section.key" type="button"
           :class="['nav-item', { active: activeSection === section.key }]"
           @click="activeSection = section.key">
-          <span class="nav-icon" aria-hidden="true">{{ section.icon }}</span><span>{{ section.label }}</span>
+          <span class="nav-icon" aria-hidden="true">{{ section.index }}</span><span>{{ section.label }}</span>
+          <span v-if="!section.ready" class="nav-soon">规划中</span>
           <span v-if="activeSection === section.key" class="nav-current"></span>
         </button>
         <button v-if="user?.roleCode === 'ADMIN'" type="button"
           :class="['nav-item', { active: activeSection === 'accounts' }]"
           @click="activeSection = 'accounts'">
-          <span class="nav-icon" aria-hidden="true">♙</span><span>账号管理</span>
+          <span class="nav-icon" aria-hidden="true">06</span><span>账号管理</span><span class="nav-soon">规划中</span>
           <span v-if="activeSection === 'accounts'" class="nav-current"></span>
         </button>
       </nav>
@@ -404,26 +454,36 @@ onMounted(restoreSession)
       </header>
       <div class="workspace-body">
         <template v-if="activeSection === 'overview'">
-          <div class="page-heading"><div><span class="page-kicker">YOUR SPACE</span><h2>你好，{{ displayName }}。</h2><p>把生活放在眼前，也留一点余地给明天。</p></div>
+          <div class="page-heading"><div><span class="page-kicker">TODAY · {{ dateText }}</span><h2>你好，{{ displayName }}。</h2><p>从身体、日常与收支，慢慢看见自己的生活。</p></div>
             <div class="account-chip"><span class="chip-dot"></span>{{ user?.roleCode === 'ADMIN' ? '管理员账号' : '普通用户账号' }}</div></div>
-          <section class="welcome-card">
-            <div class="welcome-glow"></div><div class="welcome-rings"></div>
-            <div class="welcome-content"><span>汐序 · 生活总览</span><h3>让记录慢慢汇成<br />自己的生活地图。</h3>
-              <p>手机端负责随手记下，Web 端负责安静地整理与回看。</p></div>
-            <div class="welcome-seal" aria-hidden="true">汐</div>
+          <section class="welcome-card" aria-label="今日概览">
+            <div class="welcome-content"><span>YOUR DAY AT A GLANCE</span><h3>先照顾身体，再记录生活。</h3>
+              <p>体重与睡眠从真实测量开始，日志和账目继续留在各自的位置。</p>
+              <div class="welcome-actions"><button type="button" @click="activeSection = 'health'">查看身体与训练 <span aria-hidden="true">↗</span></button><button type="button" @click="activeSection = 'journal'">写一条日志 <span aria-hidden="true">↗</span></button><button type="button" @click="activeSection = 'ledger'">记一笔账 <span aria-hidden="true">↗</span></button></div>
+            </div>
+            <span class="welcome-mark" aria-hidden="true">汐</span>
           </section>
-          <div class="section-title-row"><div><span class="section-kicker">MODULES</span><h3>从这里开始整理</h3></div><span>4 个生活模块</span></div>
+          <div class="section-title-row"><div><span class="section-kicker">TODAY'S RECORD</span><h3>今天的记录</h3></div><button type="button" class="text-link" @click="loadOverview">{{ overview.loading ? '正在同步…' : '刷新数据 ↻' }}</button></div>
+          <div class="overview-stats" aria-live="polite">
+            <button type="button" class="overview-stat" @click="activeSection = 'health'"><span>最近体重</span><strong>{{ overview.loading ? '…' : overview.weight === null ? '尚未记录' : overview.weight + ' kg' }}</strong><small>{{ overview.weightDate || '查看身体与训练' }} ↗</small></button>
+            <button type="button" class="overview-stat" @click="activeSection = 'health'"><span>最近睡眠</span><strong>{{ overview.loading ? '…' : overview.sleepMinutes === null ? '尚未记录' : Math.floor(overview.sleepMinutes / 60) + ' 小时 ' + overview.sleepMinutes % 60 + ' 分钟' }}</strong><small>{{ overview.sleepDate || '查看身体与训练' }} ↗</small></button>
+            <button type="button" class="overview-stat" @click="activeSection = 'ledger'"><span>今日支出</span><strong>{{ overview.loading ? '…' : overview.expense === null ? '—' : '¥' + overview.expense }}</strong><small>{{ overview.ledgerCount === null ? '数据暂未同步' : overview.ledgerCount + ' 笔有效账目' }} · 查看账本 ↗</small></button>
+            <button type="button" class="overview-stat" @click="activeSection = 'journal'"><span>生活记录</span><strong>{{ overview.loading ? '…' : overview.logCount === null ? '—' : overview.logCount + ' 条' }}</strong><small>按发生日期回看 · 查看日志 ↗</small></button>
+          </div>
+          <p v-if="overview.error" class="overview-error" role="status">{{ overview.error }}</p>
+          <div class="section-title-row"><div><span class="section-kicker">YOUR SPACE</span><h3>管理你的生活</h3></div><span>已开放 3 个模块</span></div>
           <div class="module-grid">
-            <button v-for="section in sections.filter(item => item.key !== 'overview')" :key="section.key"
+            <button v-for="section in sections.filter(item => item.key !== 'overview' && item.ready)" :key="section.key"
               type="button" class="module-card" @click="activeSection = section.key">
-              <span :class="['module-icon', section.key]">{{ section.icon }}</span>
+              <span :class="['module-icon', section.key]">{{ section.index }}</span>
               <span class="module-title">{{ section.label }} <span aria-hidden="true">↗</span></span>
               <span class="module-detail">{{ section.detail }}</span>
-              <span class="module-status"><i></i> {{ section.key === 'ledger' ? '已接入真实数据' : '功能接入中' }}</span>
+              <span class="module-status"><i></i> 已接入真实数据</span>
             </button>
           </div>
-          <div class="status-strip"><span class="status-mark">✓</span><div><strong>账号连接正常</strong><p>记账已接入真实数据；日志与训练正在接入，日程与附件仍在建设中。</p></div></div>
+          <div class="coming-soon"><strong>继续建设中</strong><span>日程课表与附件归档会在后续版本加入；当前不会显示模拟数据。</span></div>
         </template>
+        <HealthPanel v-else-if="activeSection === 'health'" />
         <template v-else-if="activeSection === 'ledger'">
           <div class="page-heading"><div><span class="page-kicker">XIXU / LEDGER</span>
             <h2>记账</h2>
@@ -562,7 +622,7 @@ onMounted(restoreSession)
           <div class="page-heading"><div><span class="page-kicker">XIXU / WORKSPACE</span>
             <h2>{{ activeSection === 'accounts' ? '账号管理' : currentSection?.label }}</h2>
             <p>{{ activeSection === 'accounts' ? '管理账号状态与角色。' : currentSection?.detail }}</p></div></div>
-          <div class="empty-state"><span class="empty-symbol">{{ activeSection === 'accounts' ? '♙' : currentSection?.icon }}</span>
+          <div class="empty-state"><span class="empty-symbol">{{ activeSection === 'accounts' ? '06' : currentSection?.index }}</span>
             <h3>正在准备这个空间</h3><p>当前已完成登录和身份识别。这里的真实数据与操作会在对应模块接入后出现。</p>
             <button type="button" @click="activeSection = 'overview'">返回总览 <span>→</span></button></div>
         </template>
@@ -699,4 +759,39 @@ onMounted(restoreSession)
 @media (max-width: 640px) { .filter input { width: 100%; } .void-dialog { padding: 23px; } }
 .filter .void-toggle { display: flex; align-self: flex-end; align-items: center; flex-direction: row; gap: 7px; height: 38px; padding-right: 7px; white-space: nowrap; color: #617e7d; font-size: 12px; }
 .filter .void-toggle input { flex: 0 0 auto; width: 15px; min-width: 15px; height: 15px; margin: 0; accent-color: #27786e; }
+.ledger-compose, .ledger-list { padding: 27px 30px; border-color: var(--xi-border); border-radius: 16px; box-shadow: none; }
+.summary-card { background: #fff; border-color: var(--xi-border); box-shadow: none; }
+.summary-card::after { display: none; }
+.summary-card.expense { background: #fff9f5; }
+.summary-card.income { background: #f3faf6; }
+.summary-card span, .summary-card small { color: var(--xi-body); font-size: 13px; }
+.summary-card strong { color: var(--xi-ink); }
+.summary-card.expense strong { color: var(--xi-expense); }
+.ledger-section-head h3, .ledger-toolbar h3 { color: var(--xi-ink); font-size: 20px; }
+.ledger-section-head > span, .workout-sets-heading span { color: var(--xi-body); font-size: 12px; }
+.form-field, .filter label { color: var(--xi-ink); font-size: 13px; }
+.form-field input, .form-field textarea, .filter input, .filter select, .workout-set-fields input { border-color: var(--xi-border); background: #fff; color: var(--xi-ink); }
+.form-field input { height: 46px; }
+.form-field input::placeholder, .form-field textarea::placeholder { color: #71898c; }
+.submit, .filter button { min-height: 44px; background: var(--xi-brand); box-shadow: none; }
+.type-toggle button.active { background: var(--xi-brand-deep); }
+.filter input, .filter select, .filter button { height: 44px; }
+.journal-filter .month-step { min-width: 44px; width: 44px; }
+.entry-table th { color: var(--xi-body); font-size: 12px; }
+.entry-table td { color: var(--xi-ink); }
+.log-card { padding: 18px 20px; border-color: var(--xi-border); background: #fff; }
+.log-meta { flex-wrap: wrap; color: var(--xi-body); font-size: 12px; }
+.log-type { color: var(--xi-brand); }
+.log-source { color: var(--xi-body); }
+.log-card h4 { color: var(--xi-ink); font-size: 17px; }
+.log-card p { margin-top: 9px; color: var(--xi-body); font-size: 14px; line-height: 1.7; }
+.log-card p.log-remark { font-size: 12px; color: var(--xi-body); }
+.pager button, .void-btn, .set-add { min-height: 40px; }
+@media (max-width: 640px) {
+  .ledger-compose, .ledger-list { padding: 22px 18px; }
+  .ledger-summary { grid-template-columns: 1fr 1fr; }
+  .summary-card:first-child { grid-column: 1 / -1; }
+  .summary-card strong { font-size: 23px; }
+  .journal-filter { align-items: flex-end; }
+}
 </style>

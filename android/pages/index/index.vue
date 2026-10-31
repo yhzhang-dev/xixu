@@ -10,18 +10,18 @@
     </view>
 
     <view class="hero">
-      <view class="hero-circle circle-one"></view>
-      <view class="hero-circle circle-two"></view>
       <view class="hero-inner">
-        <text class="hero-top">{{ greeting }}{{ accountName ? '，' + accountName : '' }} · {{ weekday }}</text>
-        <text class="hero-title">把今天，</text>
-        <text class="hero-title hero-title-next">慢慢收好。</text>
-        <view class="hero-subtitle"><text>每一笔开销、每一段日常，</text><text>都能在这里找到自己的位置。</text></view>
-        <button class="hero-button" @tap="openAction('记一笔')">＋　开始记录</button>
+        <text class="hero-top">{{ greeting }}{{ accountName ? '，' + accountName : '' }}</text>
+        <text class="hero-title">先照顾身体，再记录生活。</text>
+        <text class="hero-subtitle">体重与睡眠，从真实测量开始。</text>
+        <button class="hero-button" @tap="goHealth()">身体与训练 <text aria-hidden="true">→</text></button>
       </view>
     </view>
 
-    <view class="sample-label"><view class="sample-dot"></view><text>账目与日志以服务端为准 · 日程为示例</text></view>
+    <view class="sample-label"><view class="sample-dot"></view><text>身体、日志与账目来自同一账号</text></view>
+
+    <view class="section-head"><view><text class="section-en">WELLNESS</text><text class="section-title">身体与训练</text></view><text class="section-side" @tap="goHealth()">查看记录 ›</text></view>
+    <view class="health-preview" @tap="goHealth()"><view><text>最近体重</text><text class="health-value">{{ healthError ? '—' : latestWeight ? latestWeight.weightKg + ' kg' : '尚未记录' }}</text><text class="health-date">{{ latestWeight ? latestWeight.observedOn : '点击开始记录' }}</text></view><view><text>最近睡眠</text><text class="health-value">{{ healthError ? '—' : latestSleep ? durationText(latestSleep.durationMinutes) : '尚未记录' }}</text><text class="health-date">{{ latestSleep ? latestSleep.sleepOn : '点击开始记录' }}</text></view></view>
 
     <view class="section-head">
       <view><text class="section-en">OVERVIEW</text><text class="section-title">今日一览</text></view>
@@ -32,11 +32,6 @@
         <text class="stat-name">今日支出</text>
         <view class="stat-number"><text v-if="!todayLedgerError" class="unit">¥</text><text>{{ todayLedgerError ? '—' : todayExpense }}</text></view>
         <text class="stat-note">{{ todayLedgerError ? '账目暂未同步' : todayCount ? '今日真实支出' : '暂无支出' }}</text>
-      </view>
-      <view class="stat">
-        <text class="stat-name">待办日程</text>
-        <view class="stat-number"><text>02</text><text class="suffix">项</text></view>
-        <text class="stat-note">示例安排</text>
       </view>
       <view class="stat" @tap="goJournalList">
         <text class="stat-name">生活记录</text>
@@ -50,17 +45,17 @@
       <text class="section-side">从此刻开始</text>
     </view>
     <view class="actions">
-      <button class="action" @tap="openAction('记一笔')">
-        <text class="action-icon icon-green">¥</text><view class="action-text"><text class="action-title">记一笔</text><text class="action-desc">收支一目了然</text></view><text class="arrow">›</text>
+      <button class="action" @tap="goHealthRecord('body')">
+        <text class="action-icon icon-green">01</text><view class="action-text"><text class="action-title">记体重</text><text class="action-desc">记录真实测量</text></view><text class="arrow">›</text>
       </button>
-      <button class="action" @tap="openAction('看日程')">
-        <text class="action-icon icon-blue">日</text><view class="action-text"><text class="action-title">看日程</text><text class="action-desc">课表与安排</text></view><text class="arrow">›</text>
+      <button class="action" @tap="goHealthRecord('sleep')">
+        <text class="action-icon icon-blue">02</text><view class="action-text"><text class="action-title">记睡眠</text><text class="action-desc">按醒来日期</text></view><text class="arrow">›</text>
       </button>
-      <button class="action" @tap="openAction('写日志')">
-        <text class="action-icon icon-sand">✎</text><view class="action-text"><text class="action-title">写日志</text><text class="action-desc">留住日常片段</text></view><text class="arrow">›</text>
+      <button class="action" @tap="goRecord">
+        <text class="action-icon icon-sand">03</text><view class="action-text"><text class="action-title">记一笔</text><text class="action-desc">录入收支</text></view><text class="arrow">›</text>
       </button>
-      <button class="action" @tap="openAction('存附件')">
-        <text class="action-icon icon-purple">▧</text><view class="action-text"><text class="action-title">存附件</text><text class="action-desc">图片与凭据</text></view><text class="arrow">›</text>
+      <button class="action" @tap="goJournalRecord">
+        <text class="action-icon icon-purple">04</text><view class="action-text"><text class="action-title">写日志</text><text class="action-desc">日常片段</text></view><text class="arrow">›</text>
       </button>
     </view>
 
@@ -92,6 +87,7 @@
 
 <script>
 import { API_BASE_URL, TOKEN_KEY } from '../../common/api.js'
+import { listWellness } from '../../common/wellness.js'
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 export default {
@@ -112,7 +108,11 @@ export default {
       todayRequestId: 0,
       todayLogCount: 0,
       todayLogError: false,
-      todayLogRequestId: 0
+      todayLogRequestId: 0,
+      latestWeight: null,
+      latestSleep: null,
+      healthError: false,
+      healthRequestId: 0
     }
   },
   onLoad() {
@@ -139,18 +139,34 @@ export default {
     this.weekday = weekdays[now.getDay()]
     this.loadTodayLedger()
     this.loadTodayLogs()
+    this.loadHealth()
   },
   methods: {
-    openAction(name) {
-      if (name === '记一笔') {
-        this.goRecord()
-        return
-      }
-      if (name === '写日志') {
-        this.goJournalRecord()
-        return
-      }
-      uni.showToast({ title: name + '页面正在制作', icon: 'none' })
+    goHealth(tab) {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) { this.expireSession(); return }
+      uni.navigateTo({ url: '/pages/health/index' + (tab ? '?tab=' + tab : '') })
+    },
+    goHealthRecord(tab) {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) { this.expireSession(); return }
+      uni.navigateTo({ url: '/pages/health/record?tab=' + tab })
+    },
+    durationText(minutes) { return Math.floor(minutes / 60) + '小时' + minutes % 60 + '分' },
+    async loadHealth() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) return
+      const id = ++this.healthRequestId
+      const end = new Date(), start = new Date()
+      start.setDate(start.getDate() - 364)
+      const date = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+      this.healthError = false
+      const results = await Promise.allSettled([listWellness('body', date(start), date(end)), listWellness('sleep', date(start), date(end))])
+      if (id !== this.healthRequestId) return
+      if (results.some(result => result.status === 'rejected' && result.reason.status === 401)) { this.expireSession(); return }
+      if (results[0].status === 'fulfilled') this.latestWeight = (results[0].value || []).find(item => item.weightKg != null) || null
+      if (results[1].status === 'fulfilled') this.latestSleep = (results[1].value || [])[0] || null
+      this.healthError = results.some(result => result.status === 'rejected')
     },
     goRecord() {
       const token = uni.getStorageSync(TOKEN_KEY)
@@ -321,4 +337,47 @@ button::after { border: 0; }
 .last .event-info { border-left-color: transparent; }
 .footer { display: block; text-align: center; margin-top: 38rpx; font-size: 18rpx; color: #a1b2b3; letter-spacing: 1rpx; }
 .ledger-more { margin-top: 14rpx; background: #eaf4ef; border-radius: 18rpx; color: #2c756d; font-size: 22rpx; }
+/* 汐序 v1：以真实数据和快速记录为中心 */
+page { background: var(--xi-bg); }
+.home { padding: 0 34rpx calc(74rpx + env(safe-area-inset-bottom)); color: var(--xi-ink); }
+.header { margin: 28rpx 2rpx 25rpx; }
+.eyebrow { color: var(--xi-brand); font-size: 19rpx; letter-spacing: 5rpx; }
+.brand-name { color: var(--xi-ink); font-size: 45rpx; }
+.brand-note { color: var(--xi-body); font-size: 23rpx; }
+.date-number { color: var(--xi-ink); font-size: 42rpx; }
+.date-month { color: var(--xi-body); font-size: 22rpx; }
+.hero { min-height: 0; border-radius: 30rpx; background: var(--xi-deep); box-shadow: none; }
+.hero-inner { padding: 39rpx 38rpx 37rpx; }
+.hero-top { color: #c6e5dc; font-size: 23rpx; letter-spacing: 0; }
+.hero-title { margin-top: 18rpx; font-size: 43rpx; line-height: 1.3; letter-spacing: 0; }
+.hero-subtitle { margin-top: 12rpx; color: #d4e7e0; font-size: 24rpx; line-height: 1.55; }
+.hero-button { display: flex; align-items: center; justify-content: space-between; min-width: 210rpx; height: 82rpx; line-height: 82rpx; margin: 28rpx 0 0; padding: 0 28rpx; border-radius: 17rpx; background: #eaf5ee; color: var(--xi-deep); font-size: 25rpx; }
+.hero-button text { margin-left: 24rpx; }
+.sample-label { justify-content: flex-start; margin: 21rpx 2rpx 34rpx; color: var(--xi-body); font-size: 21rpx; }
+.sample-dot { background: var(--xi-brand); }
+.section-head { margin-bottom: 17rpx; }
+.section-en { color: var(--xi-brand); font-size: 19rpx; letter-spacing: 3rpx; }
+.section-title { color: var(--xi-ink); font-size: 34rpx; }
+.section-side { color: var(--xi-body); font-size: 22rpx; }
+.later { margin-top: 42rpx; }
+.stats { gap: 15rpx; }
+.stat { min-height: 166rpx; padding: 23rpx 22rpx; border: 1rpx solid var(--xi-border); border-radius: 24rpx; box-shadow: none; }
+.stat-name { color: var(--xi-body); font-size: 22rpx; }
+.stat-number { margin-top: 13rpx; color: var(--xi-ink); font-size: 42rpx; }
+.unit, .suffix { font-size: 22rpx; }
+.stat-note { color: var(--xi-body); font-size: 20rpx; }
+.actions { row-gap: 15rpx; }
+.action { width: 49%; min-height: 130rpx; padding: 17rpx 16rpx; border: 1rpx solid var(--xi-border); border-radius: 23rpx; box-shadow: none; }
+.action-icon { width: 50rpx; height: 50rpx; border-radius: 13rpx; font-size: 20rpx; letter-spacing: 1rpx; }
+.action-title { color: var(--xi-ink); font-size: 24rpx; }
+.action-desc { color: var(--xi-body); font-size: 19rpx; }
+.arrow { color: var(--xi-brand); }
+.timeline { border: 1rpx solid var(--xi-border); box-shadow: none; }
+.event-time, .event-detail { color: var(--xi-body); font-size: 21rpx; }
+.event-title { color: var(--xi-ink); font-size: 25rpx; }
+.event-type { color: var(--xi-brand); font-size: 20rpx; }
+.footer { color: var(--xi-body); font-size: 20rpx; }
+.logout-button { min-height: 82rpx; color: var(--xi-body); font-size: 22rpx; }
+.health-preview { display:flex; gap:15rpx; margin-bottom:38rpx; }.health-preview > view { box-sizing:border-box; flex:1; min-width:0; display:flex; flex-direction:column; min-height:170rpx; padding:24rpx 21rpx; border:1rpx solid var(--xi-border); border-radius:24rpx; background:#fff; }.health-preview text:first-child { color:var(--xi-body); font-size:22rpx; }.health-value { margin-top:14rpx; color:var(--xi-ink); font-size:31rpx; font-weight:650; white-space:nowrap; }.health-date { margin-top:8rpx; color:var(--xi-body); font-size:20rpx; }
+button:active, .stat:active { opacity: .78; }
 </style>
