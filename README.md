@@ -1,4 +1,16 @@
-# 个人生活数据管理系统（毕业设计）
+<p align="center">
+  <img src="design/readme-banner.png" alt="汐序 Xixu" width="100%">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Java-17-orange" alt="Java 17">
+  <img src="https://img.shields.io/badge/Spring_Boot-4.1-6DB33F" alt="Spring Boot">
+  <img src="https://img.shields.io/badge/Vue-3-42B883" alt="Vue 3">
+  <img src="https://img.shields.io/badge/MySQL-8.4-4479A1" alt="MySQL 8.4">
+  <img src="https://img.shields.io/badge/uni--app-Android-2B9939" alt="uni-app">
+</p>
+
+# 汐序 · 个人生活数据管理系统（毕业设计）
 
 2027 届本科毕业设计工作区。当前阶段：**两端并行开发**；Android 登录已在真机验证，Vue 3 Web 端使用同一账号进入工作台也已验证。记账服务端接口与“手机新增 → Web 查看 → Web 作废”跨端流程已联调通过。
 
