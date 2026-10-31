@@ -12,4 +12,7 @@
 
 参与服务端接口、Web / Android 界面、调试与文档撰写，基于 DeepSeek Harness。
 
-> DeepSea（小鲸）是 AI 编程助手，没有独立的 GitHub 账号，因此不会出现在仓库侧栏自动生成的 Contributors 头像列表中；此处如实署名它的参与。
+- GitHub：[@deepsea-whale](https://github.com/deepsea-whale)（`deepsea.whale@qq.com`）
+- 通过提交的 `Co-authored-by` 署名参与。
+
+> 侧栏 Contributors 的头像来自该 GitHub 账号的头像设置与已验证邮箱；若暂未显示，请确认 `deepsea.whale@qq.com` 已在账号中验证，并上传头像。
