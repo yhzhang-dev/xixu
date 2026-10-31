@@ -68,6 +68,6 @@
 
 ## 贡献者
 
-<a href="https://github.com/yhzhang-dev/xixu/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=yhzhang-dev/xixu" alt="Contributors" />
-</a>
+<a href="https://github.com/yhzhang-dev"><img src="https://github.com/yhzhang-dev.png?size=96" width="56" height="56" alt="yhzhang-dev" title="yhzhang-dev"></a>
+&nbsp;&nbsp;
+<a href="https://github.com/deepsea-whale"><img src="https://github.com/deepsea-whale.png?size=96" width="56" height="56" alt="deepsea-whale" title="deepsea-whale"></a>
