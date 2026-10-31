@@ -14,5 +14,3 @@
 
 - GitHub：[@deepsea-whale](https://github.com/deepsea-whale)（`deepsea.whale@qq.com`）
 - 此后本项目所有提交均附带 `Co-authored-by: DeepSea（小鲸） <deepsea.whale@qq.com>` 署名。
-
-> 侧栏 Contributors 的头像来自该 GitHub 账号的头像设置与已验证邮箱；若暂未显示，请确认 `deepsea.whale@qq.com` 已在账号中验证，并上传头像。
