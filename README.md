@@ -65,3 +65,9 @@
 旧版高范围方案保存在 `docs/选题意向-初稿-2026-10-30.md`，用于保留修改来由；当前方案以 `docs/选题意向.md` 为准。学校时间表 PDF 保留在根目录。
 
 参与与致谢见 [CONTRIBUTORS.md](CONTRIBUTORS.md)。
+
+## 贡献者
+
+<a href="https://github.com/yhzhang-dev/xixu/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=yhzhang-dev/xixu" alt="Contributors" />
+</a>
