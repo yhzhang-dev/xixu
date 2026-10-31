@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { clearToken, getCurrentUser, getToken, login, logout, saveToken } from './api/auth'
 import { createEntry, getSummary, listEntries, voidEntry } from './api/ledger'
+import { createLog, listLogs } from './api/logs'
 
 const state = ref('checking')
 const username = ref('')
@@ -29,6 +30,15 @@ const voidTarget = ref(null)
 const voidReason = ref('')
 const voidError = ref('')
 let ledgerRequestId = 0
+const journal = ref({ items: [], total: 0, page: 1, size: 20, month: todayInput().slice(0, 7), type: '', loading: false, error: '' })
+let nextWorkoutSetKey = 0
+const journalForm = ref({ entryType: 'NOTE', occurredOn: todayInput(), title: '', content: '', sets: [emptyWorkoutSet()] })
+const journalBusy = ref(false)
+const journalError = ref('')
+const journalSuccess = ref('')
+let journalRequestId = 0
+
+function emptyWorkoutSet() { return { _key: ++nextWorkoutSetKey, exerciseName: '', repetitions: '', weightKg: '', durationSeconds: '' } }
 
 const dateText = new Intl.DateTimeFormat('zh-CN', {
   month: 'long', day: 'numeric', weekday: 'long',
@@ -38,7 +48,7 @@ const sections = [
   { key: 'overview', icon: '⌂', label: '总览', detail: '生活的脉络，从这里开始。' },
   { key: 'ledger', icon: '¥', label: '记账', detail: '记录收入与支出，按日期和分类查找。' },
   { key: 'schedule', icon: '▦', label: '日程课表', detail: '安排课程、计划和提醒。' },
-  { key: 'journal', icon: '✎', label: '每日日志', detail: '保存每天值得回看的片段。' },
+  { key: 'journal', icon: '✎', label: '日志与训练', detail: '记录日常片段和每一组训练。' },
   { key: 'attachments', icon: '▧', label: '附件归档', detail: '整理截图、票据和文件。' },
 ]
 
@@ -95,7 +105,9 @@ async function signOut() {
     clearToken()
     user.value = null
     ledgerRequestId++
+    journalRequestId++
     ledger.value.items = []
+    journal.value.items = []
     ledgerSummary.value = { count: 0, expense: 0, income: 0 }
     voidTarget.value = null
     activeSection.value = 'overview'
@@ -210,7 +222,105 @@ async function confirmVoid() {
   }
 }
 
-watch(activeSection, (section) => { if (section === 'ledger') loadLedger(1) })
+function addWorkoutSet() {
+  if (journalForm.value.sets.length < 30) journalForm.value.sets.push(emptyWorkoutSet())
+}
+
+function copyWorkoutSet(index) {
+  if (journalForm.value.sets.length >= 30) return
+  journalForm.value.sets.splice(index + 1, 0, { ...journalForm.value.sets[index], _key: ++nextWorkoutSetKey })
+}
+
+function removeWorkoutSet(index) {
+  if (journalForm.value.sets.length > 1) journalForm.value.sets.splice(index, 1)
+}
+
+async function loadJournal(page = journal.value.page) {
+  const requestId = ++journalRequestId
+  const month = journal.value.month
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    journal.value.error = '请选择查询月份。'
+    journal.value.loading = false
+    return
+  }
+  const [year, monthNumber] = month.split('-').map(Number)
+  const lastDay = String(new Date(year, monthNumber, 0).getDate()).padStart(2, '0')
+  journal.value.loading = true
+  journal.value.error = ''
+  if (page === 1) { journal.value.items = []; journal.value.total = 0; journal.value.page = 1 }
+  try {
+    const result = await listLogs({ from: month + '-01', to: month + '-' + lastDay,
+      page, size: journal.value.size, type: journal.value.type || undefined })
+    if (requestId !== journalRequestId) return
+    journal.value.items = result.items
+    journal.value.total = result.total
+    journal.value.page = result.page
+  } catch (cause) {
+    if (requestId !== journalRequestId) return
+    journal.value.error = cause.message || '日志加载失败'
+    if (cause.status === 401) { clearToken(); user.value = null; state.value = 'login' }
+  } finally {
+    if (requestId === journalRequestId) journal.value.loading = false
+  }
+}
+
+function shiftJournalMonth(delta) {
+  const current = /^\d{4}-(0[1-9]|1[0-2])$/.test(journal.value.month)
+    ? journal.value.month : todayInput().slice(0, 7)
+  const [year, month] = current.split('-').map(Number)
+  const date = new Date(year, month - 1 + delta, 1)
+  journal.value.month = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0')
+  loadJournal(1)
+}
+
+async function submitJournal() {
+  if (journalBusy.value) return
+  journalError.value = ''
+  journalSuccess.value = ''
+  const form = journalForm.value
+  if (!form.occurredOn || !form.title.trim()) { journalError.value = '请填写日期和标题。'; return }
+  let sets = []
+  if (form.entryType === 'WORKOUT') {
+    if (!form.sets.length || form.sets.length > 30) { journalError.value = '一次训练需要 1–30 组。'; return }
+    for (const [index, set] of form.sets.entries()) {
+      const repetitions = String(set.repetitions).trim()
+      const duration = String(set.durationSeconds).trim()
+      const weight = String(set.weightKg).trim()
+      if (!set.exerciseName.trim() || (!repetitions && !duration)) {
+        journalError.value = `第 ${index + 1} 组需要项目名称及次数或时长。`
+        return
+      }
+      if ((repetitions && (!/^\d+$/.test(repetitions) || Number(repetitions) < 1 || Number(repetitions) > 10000)) ||
+          (duration && (!/^\d+$/.test(duration) || Number(duration) < 1 || Number(duration) > 86400)) ||
+          (weight && (!/^(?:0|[1-9]\d{0,4})(?:\.\d{1,2})?$/.test(weight)))) {
+        journalError.value = `第 ${index + 1} 组的次数、秒数或重量格式不正确。`
+        return
+      }
+      sets.push({ exerciseName: set.exerciseName.trim(), repetitions: repetitions ? Number(repetitions) : null,
+        weightKg: weight ? weight : null, durationSeconds: duration ? Number(duration) : null })
+    }
+  }
+  journalBusy.value = true
+  try {
+    await createLog({ entryType: form.entryType, occurredOn: form.occurredOn,
+      title: form.title.trim(), content: form.content.trim() || null, sets })
+    form.title = ''
+    form.content = ''
+    form.sets = [emptyWorkoutSet()]
+    journalSuccess.value = '已保存这条记录。'
+    await loadJournal(1)
+  } catch (cause) {
+    journalError.value = cause.message || '保存失败，请稍后重试'
+    if (cause.status === 401) { clearToken(); user.value = null; state.value = 'login' }
+  } finally {
+    journalBusy.value = false
+  }
+}
+
+watch(activeSection, (section) => {
+  if (section === 'ledger') loadLedger(1)
+  if (section === 'journal') loadJournal(1)
+})
 
 onMounted(restoreSession)
 </script>
@@ -312,7 +422,7 @@ onMounted(restoreSession)
               <span class="module-status"><i></i> {{ section.key === 'ledger' ? '已接入真实数据' : '功能接入中' }}</span>
             </button>
           </div>
-          <div class="status-strip"><span class="status-mark">✓</span><div><strong>账号连接正常</strong><p>记账已接入真实数据；日程、日志与附件仍在建设中。</p></div></div>
+          <div class="status-strip"><span class="status-mark">✓</span><div><strong>账号连接正常</strong><p>记账已接入真实数据；日志与训练正在接入，日程与附件仍在建设中。</p></div></div>
         </template>
         <template v-else-if="activeSection === 'ledger'">
           <div class="page-heading"><div><span class="page-kicker">XIXU / LEDGER</span>
@@ -397,6 +507,57 @@ onMounted(restoreSession)
             </section>
           </div>
         </template>
+        <template v-else-if="activeSection === 'journal'">
+          <div class="page-heading"><div><span class="page-kicker">XIXU / JOURNAL</span><h2>日志与训练</h2>
+            <p>文字记录和训练组次按实际发生日期保存。未知的重量、次数或时长可以留空。</p></div></div>
+          <section class="ledger-compose">
+            <div class="ledger-section-head"><div><span class="section-kicker">NEW LOG</span><h3>写一条记录</h3></div><span>训练项目按组次单独保存</span></div>
+            <form class="entry-form" @submit.prevent="submitJournal">
+              <div class="entry-form-grid">
+                <div class="form-field"><span>记录类型</span><div class="type-toggle">
+                  <button type="button" :class="{ active: journalForm.entryType === 'NOTE' }" @click="journalForm.entryType = 'NOTE'">日常日志</button>
+                  <button type="button" :class="{ active: journalForm.entryType === 'WORKOUT' }" @click="journalForm.entryType = 'WORKOUT'">健身训练</button>
+                </div></div>
+                <label class="form-field"><span>发生日期 <b>*</b></span><input v-model="journalForm.occurredOn" type="date" required /></label>
+                <label class="form-field"><span>标题 <b>*</b></span><input v-model="journalForm.title" type="text" maxlength="100" placeholder="今天想记下什么？" required /></label>
+                <label v-if="journalForm.entryType === 'NOTE'" class="form-field form-field-full"><span>正文</span><textarea v-model="journalForm.content" maxlength="2000" rows="3" placeholder="保留自己的原始描述，选填"></textarea></label>
+              </div>
+              <div v-if="journalForm.entryType === 'WORKOUT'" class="workout-sets">
+                <div class="workout-sets-heading"><strong>训练组次 <small>{{ journalForm.sets.length }} / 30</small></strong><span>填写次数或时长；重量未知可留空</span></div>
+                <div v-for="(set, index) in journalForm.sets" :key="set._key" class="workout-set-card">
+                  <div class="workout-set-head"><strong>第 {{ index + 1 }} 组</strong><div><button type="button" :disabled="journalForm.sets.length >= 30" @click="copyWorkoutSet(index)">复制此组</button><button type="button" :disabled="journalForm.sets.length === 1" @click="removeWorkoutSet(index)">移除</button></div></div>
+                  <div class="workout-set-fields">
+                    <label>训练项目<input v-model="set.exerciseName" type="text" maxlength="80" placeholder="如：卧推、跑步" /></label>
+                    <label>次数<input v-model="set.repetitions" type="text" inputmode="numeric" maxlength="5" placeholder="次" /></label>
+                    <label>重量<input v-model="set.weightKg" type="text" inputmode="decimal" maxlength="8" placeholder="kg" /></label>
+                    <label>时长<input v-model="set.durationSeconds" type="text" inputmode="numeric" maxlength="5" placeholder="秒" /></label>
+                  </div>
+                </div>
+                <button type="button" class="set-add" :disabled="journalForm.sets.length >= 30" @click="addWorkoutSet">＋ 添加空白组</button>
+              </div>
+              <label v-if="journalForm.entryType === 'WORKOUT'" class="form-field journal-followup"><span>训练感受或补充</span><textarea v-model="journalForm.content" maxlength="2000" rows="3" placeholder="记录当天的状态或背景，选填"></textarea></label>
+              <div class="form-actions"><p class="form-feedback" aria-live="polite"><span v-if="journalError" class="form-error">{{ journalError }}</span><span v-else-if="journalSuccess" class="success-text">{{ journalSuccess }}</span></p>
+                <button type="submit" class="submit" :disabled="journalBusy">{{ journalBusy ? '保存中…' : '保存记录 →' }}</button></div>
+            </form>
+          </section>
+          <section class="ledger-list">
+            <div class="ledger-toolbar"><div><span class="section-kicker">HISTORY</span><h3>记录列表<small>共 {{ journal.total }} 条</small></h3></div>
+              <div class="filter journal-filter"><button type="button" class="month-step" aria-label="上个月" @click="shiftJournalMonth(-1)">‹</button><label>月份<input v-model="journal.month" type="month" @change="loadJournal(1)" /></label><button type="button" class="month-step" aria-label="下个月" @click="shiftJournalMonth(1)">›</button>
+                <label>类型<select v-model="journal.type" @change="loadJournal(1)"><option value="">全部</option><option value="NOTE">日常日志</option><option value="WORKOUT">健身训练</option></select></label></div></div>
+            <div v-if="journal.loading" class="ledger-empty">正在加载…</div>
+            <div v-else-if="journal.error" class="ledger-empty error-state">{{ journal.error }} <button type="button" @click="loadJournal()">重试</button></div>
+            <div v-else-if="journal.items.length === 0" class="ledger-empty">还没有记录，先在上面写一条。</div>
+            <div v-else class="log-list"><article v-for="item in journal.items" :key="item.id" class="log-card">
+              <div class="log-meta"><span>{{ item.occurredOn }}</span><span v-if="item.timeLabel">{{ item.timeLabel }}</span><span class="log-type">{{ item.entryType === 'WORKOUT' ? '健身训练' : item.categoryName || '日常日志' }}</span><span v-if="item.sourceType === 'IMPORT'" class="log-source">原始日志</span></div>
+              <h4 v-if="item.sourceType !== 'IMPORT'">{{ item.title }}</h4><p v-if="item.content">{{ item.content }}</p>
+              <p v-if="item.remark" class="log-remark">备注：{{ item.remark }}</p>
+              <div v-if="item.sets?.length" class="set-chips"><span v-for="set in item.sets" :key="set.id">{{ set.exerciseName }} · {{ set.repetitions ? set.repetitions + ' 次' : '' }}{{ set.weightKg != null ? ' · ' + set.weightKg + ' kg' : '' }}{{ set.durationSeconds ? ' · ' + set.durationSeconds + ' 秒' : '' }}</span></div>
+            </article></div>
+            <div v-if="journal.total > journal.size" class="pager"><button type="button" :disabled="journal.page <= 1" @click="loadJournal(journal.page - 1)">上一页</button>
+              <span>第 {{ journal.page }} 页 / 共 {{ Math.ceil(journal.total / journal.size) }} 页</span>
+              <button type="button" :disabled="journal.page >= Math.ceil(journal.total / journal.size)" @click="loadJournal(journal.page + 1)">下一页</button></div>
+          </section>
+        </template>
         <template v-else>
           <div class="page-heading"><div><span class="page-kicker">XIXU / WORKSPACE</span>
             <h2>{{ activeSection === 'accounts' ? '账号管理' : currentSection?.label }}</h2>
@@ -427,9 +588,41 @@ onMounted(restoreSession)
 .form-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: #547175; font-size: 12px; font-weight: 600; }
 .form-field b { color: #bf765c; }
 .form-field-wide { grid-column: span 2; }
+.form-field-full { grid-column: 1 / -1; }
 .form-field input { width: 100%; min-width: 0; height: 44px; padding: 0 13px; border: 1px solid #deebe7; border-radius: 10px; outline: none; background: #fbfdfc; color: #204149; font-size: 14px; font-weight: 400; transition: border-color .18s, box-shadow .18s; }
 .form-field input:focus, .filter input:focus { border-color: #57a49a; box-shadow: 0 0 0 3px rgba(69,151,137,.11); }
 .form-field input::placeholder { color: #b2c2c0; }
+.form-field textarea { width: 100%; min-height: 92px; padding: 12px 13px; resize: vertical; border: 1px solid #deebe7; border-radius: 10px; outline: none; background: #fbfdfc; color: #204149; font: inherit; font-size: 14px; font-weight: 400; }
+.form-field textarea:focus, .workout-set-fields input:focus, .filter select:focus { border-color: #57a49a; box-shadow: 0 0 0 3px rgba(69,151,137,.11); outline: none; }
+.workout-sets { padding: 18px; border: 1px solid #e3ece8; border-radius: 13px; background: #f9fcfa; }
+.workout-sets-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #284f53; font-size: 13px; }
+.workout-sets-heading small { margin-left: 7px; color: #8da6a2; font-size: 11px; font-weight: 400; }
+.workout-sets-heading span { color: #8da6a2; font-size: 11px; }
+.workout-set-card { margin-top: 10px; padding: 14px; border: 1px solid #e2eee7; border-radius: 11px; background: #fff; }
+.workout-set-head { display: flex; align-items: center; justify-content: space-between; color: #325d59; font-size: 12px; }
+.workout-set-head > div { display: flex; gap: 13px; }
+.workout-set-head button { padding: 2px 0; border: 0; background: transparent; color: #4f8e83; font-size: 11px; }
+.workout-set-head button:last-child { color: #ad786b; }
+.workout-set-head button:disabled { opacity: .4; cursor: default; }
+.workout-set-fields { display: grid; grid-template-columns: minmax(150px, 2fr) repeat(3, minmax(76px, 1fr)); gap: 9px; margin-top: 12px; }
+.workout-set-fields label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #66847f; font-size: 11px; }
+.workout-set-fields input { width: 100%; min-width: 0; height: 38px; padding: 0 9px; border: 1px solid #dfe9e4; border-radius: 8px; background: #fbfdfc; color: #204149; font-size: 12px; }
+.journal-followup { margin-top: 5px; }
+.set-add { width: 100%; margin-top: 12px; padding: 10px; border: 1px dashed #b8d9cc; border-radius: 9px; background: #f3faf6; color: #528d7c; font-size: 12px; }
+.set-add:disabled { opacity: .4; cursor: default; }
+.journal-filter { align-items: flex-end; }
+.journal-filter .month-step { min-width: 31px; width: 31px; padding: 0; font-size: 21px; }
+.filter select { width: 130px; height: 38px; padding: 0 10px; border: 1px solid #dfe8e5; border-radius: 9px; background: #f8faf9; color: #204149; }
+.log-list { display: grid; gap: 10px; }
+.log-card { padding: 17px 18px; border: 1px solid #e6efea; border-radius: 11px; background: #fbfdfc; }
+.log-meta { display: flex; align-items: center; gap: 9px; color: #829b98; font-size: 11px; }
+.log-type { padding: 3px 8px; border-radius: 15px; background: #e7f2ec; color: #458578; }
+.log-source { padding: 3px 8px; border-radius: 15px; background: #f1f3f0; color: #758b87; }
+.log-card h4 { margin: 10px 0 5px; color: #234950; font-size: 15px; }
+.log-card p { margin: 0; color: #66827f; font-size: 12px; line-height: 1.7; white-space: pre-wrap; }
+.log-card p.log-remark { margin-top: 7px; color: #879993; font-size: 11px; }
+.set-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.set-chips span { padding: 6px 9px; border: 1px solid #dfece6; border-radius: 7px; background: #f2f8f4; color: #517c73; font-size: 11px; }
 .money-input { position: relative; }
 .money-input i { position: absolute; left: 13px; top: 10px; color: #548780; font-size: 18px; font-style: normal; }
 .money-input input { padding-left: 34px; font-size: 18px; font-variant-numeric: tabular-nums; }
@@ -457,6 +650,7 @@ onMounted(restoreSession)
 .void-btn:disabled { opacity: .55; }
 @media (max-width: 900px) { .entry-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .ledger-summary { gap: 8px; } .summary-card { min-height: 105px; padding: 14px 11px; } .summary-card strong { font-size: 17px; word-break: break-all; } .summary-card span, .summary-card small { font-size: 10px; } .entry-form-grid { grid-template-columns: 1fr; } .form-field-wide { grid-column: auto; } .filter { width: 100%; flex-wrap: wrap; } .filter label { flex: 1; min-width: 120px; } .filter input { width: 100%; } .ledger-section-head > span { display: none; } }
+@media (max-width: 760px) { .workout-set-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .workout-set-fields label:first-child { grid-column: 1 / -1; } .workout-sets-heading { flex-direction: column; } }
 .ledger-compose, .ledger-list { margin-bottom: 26px; background: #fff; border: 1px solid #e7efec; border-radius: 16px; padding: 22px 24px; box-shadow: 0 6px 22px rgba(25, 75, 77, .04); }
 .ledger-compose h3, .ledger-list h3 { margin: 0 0 16px; font-size: 15px; color: #204149; }
 .ledger-list h3 small { color: #8ba0a3; font-weight: 400; margin-left: 8px; }

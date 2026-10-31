@@ -21,7 +21,7 @@
       </view>
     </view>
 
-    <view class="sample-label"><view class="sample-dot"></view><text>记账已接入真实数据 · 日程与日志仍为示例</text></view>
+    <view class="sample-label"><view class="sample-dot"></view><text>账目与日志以服务端为准 · 日程为示例</text></view>
 
     <view class="section-head">
       <view><text class="section-en">OVERVIEW</text><text class="section-title">今日一览</text></view>
@@ -38,10 +38,10 @@
         <view class="stat-number"><text>02</text><text class="suffix">项</text></view>
         <text class="stat-note">示例安排</text>
       </view>
-      <view class="stat">
+      <view class="stat" @tap="goJournalList">
         <text class="stat-name">生活记录</text>
-        <view class="stat-number"><text>01</text><text class="suffix">条</text></view>
-        <text class="stat-note">示例随记</text>
+        <view class="stat-number"><text>{{ todayLogError ? '—' : todayLogCount }}</text><text v-if="!todayLogError" class="suffix">条</text></view>
+        <text class="stat-note">{{ todayLogError ? '日志暂未同步' : '点此查看日志' }}</text>
       </view>
     </view>
 
@@ -65,7 +65,7 @@
     </view>
 
     <view class="section-head later">
-      <view><text class="section-en">TODAY'S FLOW</text><text class="section-title">今日片段</text></view>
+      <view><text class="section-en">LEDGER TODAY</text><text class="section-title">今日账目</text></view>
       <text class="section-side" @tap="goLedger">查看账本 ›</text>
     </view>
     <view class="timeline" v-if="!todayLedgerError && todayEntries.length">
@@ -109,7 +109,10 @@ export default {
       todayEntries: [],
       todayCount: 0,
       todayLedgerError: false,
-      todayRequestId: 0
+      todayRequestId: 0,
+      todayLogCount: 0,
+      todayLogError: false,
+      todayLogRequestId: 0
     }
   },
   onLoad() {
@@ -135,11 +138,16 @@ export default {
     this.month = now.getMonth() + 1
     this.weekday = weekdays[now.getDay()]
     this.loadTodayLedger()
+    this.loadTodayLogs()
   },
   methods: {
     openAction(name) {
       if (name === '记一笔') {
         this.goRecord()
+        return
+      }
+      if (name === '写日志') {
+        this.goJournalRecord()
         return
       }
       uni.showToast({ title: name + '页面正在制作', icon: 'none' })
@@ -155,6 +163,36 @@ export default {
     },
     goLedger() {
       uni.navigateTo({ url: '/pages/ledger/list' })
+    },
+    goJournalRecord() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) { this.expireSession(); return }
+      uni.navigateTo({ url: '/pages/journal/record' })
+    },
+    goJournalList() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) { this.expireSession(); return }
+      uni.navigateTo({ url: '/pages/journal/list' })
+    },
+    loadTodayLogs() {
+      const token = uni.getStorageSync(TOKEN_KEY)
+      if (!token) return
+      const requestId = ++this.todayLogRequestId
+      const now = new Date()
+      const pad = (n) => String(n).padStart(2, '0')
+      const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+      this.todayLogError = false
+      uni.request({
+        url: API_BASE_URL + '/api/logs?from=' + today + '&to=' + today + '&page=1&size=1',
+        header: { Authorization: 'Bearer ' + token },
+        success: (res) => {
+          if (requestId !== this.todayLogRequestId) return
+          if (res.statusCode === 200 && res.data) this.todayLogCount = res.data.total || 0
+          else if (res.statusCode === 401) this.expireSession()
+          else this.todayLogError = true
+        },
+        fail: () => { if (requestId === this.todayLogRequestId) this.todayLogError = true }
+      })
     },
     loadTodayLedger() {
       const token = uni.getStorageSync(TOKEN_KEY)

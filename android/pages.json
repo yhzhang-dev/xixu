@@ -28,6 +28,20 @@
 				"navigationBarTitleText": "我的账本",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/journal/list",
+			"style": {
+				"navigationBarTitleText": "日志与训练",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/journal/record",
+			"style": {
+				"navigationBarTitleText": "写一条记录",
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

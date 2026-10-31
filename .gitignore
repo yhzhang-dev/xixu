@@ -30,6 +30,10 @@ node_modules/
 dist/
 .pnpm-store/
 
+# Python helper scripts
+__pycache__/
+*.pyc
+
 # Env & secrets
 .env
 .env.*
