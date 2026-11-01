@@ -44,3 +44,7 @@ __pycache__/
 *.log
 .tmp/
 uploads/
+
+# 论文原文（有版权，仅本地使用）
+papers/*.pdf
+papers/*.caj
