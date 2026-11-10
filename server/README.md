@@ -35,7 +35,7 @@
 | `src/test/java/` | 单元测试（Mockito，无数据库依赖） |
 | `start-local.ps1` | 本地启动脚本 |
 | `test-login-local.ps1`、`test-ledger-local.ps1` | 真实接口联调脚本 |
-| `import-dsh-logs-local.ps1`、`tools/` | DSH 样本导入与辅助工具 |
+| `import-dsh-logs-local.ps1`、`import-dsh-ledger-local.ps1`、`tools/` | DSH 日志与账本导入、辅助工具 |
 
 ## 构建与测试
 
