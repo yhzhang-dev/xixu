@@ -33,9 +33,12 @@ def daily_rows(log_dir: Path):
             cells = [part.strip() for part in line.strip("|").split("|")]
             if cells[0] == "时间":
                 continue
-            if len(cells) != 4:
-                raise ValueError(f"{path.name}:{line_number} 的表格不是四列，已停止导入")
-            time_label, category, record, remark = cells
+            if len(cells) < 4:
+                raise ValueError(f"{path.name}:{line_number} 的表格少于四列，已停止导入")
+            if len(cells) > 4:
+                print(f"提示：{path.name}:{line_number} 有 {len(cells)} 列，已合并多余单元格到备注", file=sys.stderr)
+            time_label, category, record = cells[0], cells[1], cells[2]
+            remark = " | ".join(cells[3:]).strip()
             if not category or not record:
                 raise ValueError(f"{path.name}:{line_number} 缺少类别或记录，已停止导入")
             row_number += 1
